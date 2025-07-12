@@ -336,7 +336,7 @@
                     // --- 편집 가능성 및 이벤트 리스너 설정 ---
                     // 오늘 날짜(today)부터 수능일(suneungDate)까지의 날짜에만 편집 가능하도록 설정
                     if (cellDate >= today && cellDate <= suneungDate) { 
-                        // 각 task-content에 직접 contenteditable 속성 부여 (처음엔 false)
+                        // 각 task-content에 직접 contenteditable 속성 부여 (처음엔 true)
                         taskList.querySelectorAll('.task-content').forEach(span => {
                             span.contentEditable = "true"; // 기본적으로 편집 가능하게 설정
                         });
@@ -439,6 +439,7 @@
                 <li><input type="checkbox"> <span class="task-content">${("ENS 6문제")}</span><button class="delete-task-btn">[X]</button></li>
                 <li><input type="checkbox"> <span class="task-content">${maplTask}</span><button class="delete-task-btn">[X]</button></li>
                 <li><input type="checkbox"> <span class="task-content">${currentSubjectTask}</span><button class="delete-task-btn">[X]</button></li>
+                <li><input type="checkbox"> <span class="task-content">${("매3비 풀기")}</span><button class="delete-task-btn">[X]</button></li>
             `;
         }
 
