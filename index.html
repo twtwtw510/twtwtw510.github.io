@@ -152,6 +152,14 @@
             outline: none;
             word-break: break-word;
             min-height: 1.3em;
+            /* 기본적으로 편집 불가능하게 설정 */
+            contenteditable: false; 
+            cursor: pointer; /* 클릭 가능한 것처럼 보이게 */
+        }
+        /* 암호 입력 후 편집 가능할 때의 스타일 */
+        .task-content[contenteditable="true"] {
+            background-color: #fffacd; /* 편집 모드일 때 배경색 */
+            border: 1px dashed #ccc;
         }
         .delete-task-btn {
             background: none;
@@ -164,8 +172,14 @@
             opacity: 0;
             transition: opacity 0.2s ease-in-out;
             line-height: 1;
+            display: none; /* 기본적으로 삭제 버튼 숨김 */
         }
-        .task-list li:hover .delete-task-btn {
+        /* 편집 가능 모드일 때만 삭제 버튼 표시 */
+        .task-content[contenteditable="true"] + .delete-task-btn {
+            display: inline-block;
+            opacity: 1;
+        }
+        .task-list li:hover .delete-task-btn { /* 마우스 오버 시 삭제 버튼 표시 (편집 가능할 때만) */
             opacity: 1;
         }
 
@@ -186,7 +200,6 @@
             <span id="currentMonthDisplay"></span>
             <button id="nextMonthBtn">다음 달 ▶</button>
         </div>
-        <button id="backButton" style="display: none;">뒤로가기</button>
         <button id="backupDataBtn">데이터 백업</button>
         <button id="restoreDataBtn">데이터 복원</button>
         <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
@@ -195,11 +208,16 @@
         </div>
 
     <script>
+        // --- 설정 ---
+        const PASSWORD = "1234!"; // <<< 여기에 원하는 암호를 입력하세요!
+                                             // 예: "1234" 또는 "suneung!"
+        // -----------
+
         // 오늘 날짜 설정 (시간 부분 초기화)
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
         
-        // 실제 일정 시작일 (7월 15일)
+        // 실제 일정 시작일 (7월 15일) - 2025년 7월 15일
         const studyStartDate = new Date("2025-07-15T00:00:00");
         
         // 2025년 수능일 (11월 13일 목요일)
@@ -213,7 +231,6 @@
         const currentMonthDisplay = document.getElementById('currentMonthDisplay');
         const prevMonthBtn = document.getElementById('prevMonthBtn');
         const nextMonthBtn = document.getElementById('nextMonthBtn');
-        const backButton = document.getElementById('backButton');
         const backupDataBtn = document.getElementById('backupDataBtn');
         const restoreDataBtn = document.getElementById('restoreDataBtn');
         const restoreFileInput = document.getElementById('restoreFileInput');
@@ -237,14 +254,6 @@
 
         // D-Day 초기 업데이트
         updateDDay();
-
-        // 뒤로가기 버튼 동적 추가 (웹 서버 환경에서만)
-        if (window.location.protocol.startsWith('http')) {
-            backButton.style.display = 'inline-block';
-            backButton.onclick = function() {
-                window.history.back();
-            };
-        }
 
         // 주어진 연월의 달력 데이터를 생성하고 HTML에 추가하는 함수
         function createMonthCalendar(year, month) {
@@ -317,7 +326,7 @@
                             const savedTasks = JSON.parse(savedTasksString);
                             savedTasks.forEach(task => {
                                 const newLi = document.createElement('li');
-                                newLi.innerHTML = `<input type="checkbox" ${task.checked ? 'checked' : ''}> <span class="task-content" contenteditable="true">${task.text}</span><button class="delete-task-btn">[X]</button>`;
+                                newLi.innerHTML = `<input type="checkbox" ${task.checked ? 'checked' : ''}> <span class="task-content">${task.text}</span><button class="delete-task-btn">[X]</button>`;
                                 taskList.appendChild(newLi);
                             });
                         } catch (e) {
@@ -327,78 +336,86 @@
                         generateDefaultTasks(taskList, cellDate, daysOfWeek, subjects, subjectIndex);
                     }
                     
-                    // 오늘부터 수능일까지의 날짜에만 편집 가능하도록 설정
+                    cell.appendChild(taskList);
+
+                    // --- 암호 기능 관련 이벤트 리스너 추가 ---
+                    // 오늘 날짜(today)부터 수능일(suneungDate)까지의 날짜에만 편집 가능 (암호 입력 필요)
                     if (cellDate >= today && cellDate <= suneungDate) { 
-                         cell.appendChild(taskList);
+                        taskList.addEventListener('click', (event) => {
+                            let targetContent = event.target.closest('.task-content');
+                            let targetCheckbox = event.target.closest('input[type="checkbox"]');
+                            let targetDeleteBtn = event.target.closest('.delete-task-btn');
 
-                         taskList.addEventListener('input', (event) => {
-                             if (event.target.classList.contains('task-content')) {
-                                 saveTasks(cell, dateKey);
-                             }
-                         });
-
-                         taskList.addEventListener('change', (event) => {
-                             if (event.target.type === 'checkbox') {
-                                 saveTasks(cell, dateKey);
-                             }
-                         });
-
-                         // 삭제 버튼 클릭 이벤트 리스너
-                         taskList.addEventListener('click', (event) => {
-                             if (event.target.classList.contains('delete-task-btn')) {
-                                 const liToRemove = event.target.closest('li');
-                                 if (liToRemove) {
-                                     taskList.removeChild(liToRemove);
-                                     saveTasks(cell, dateKey); // 삭제 후 저장
-                                 }
-                             }
-                         });
-                         
-                         // 엔터키 처리 로직
-                         taskList.addEventListener('keydown', (e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                 e.preventDefault(); 
-                                 
-                                 const selection = window.getSelection();
-                                 const range = selection.getRangeAt(0);
-                                 
-                                 let currentContentSpan = null;
-                                 if (range.startContainer.nodeType === Node.TEXT_NODE) {
-                                     currentContentSpan = range.startContainer.parentElement.closest('.task-content');
-                                 } else {
-                                     currentContentSpan = range.startContainer.closest('.task-content');
-                                 }
-
-                                 const newLi = document.createElement('li');
-                                 newLi.innerHTML = `<input type="checkbox"> <span class="task-content" contenteditable="true"></span><button class="delete-task-btn">[X]</button>`;
-                                 
-                                 if (currentContentSpan) {
-                                     const currentLi = currentContentSpan.closest('li');
-                                     if (currentLi) {
-                                         taskList.insertBefore(newLi, currentLi.nextSibling);
-                                     } else {
-                                         taskList.appendChild(newLi);
-                                     }
-                                 } else {
-                                     taskList.appendChild(newLi);
-                                 }
-
-                                 const newContentSpan = newLi.querySelector('.task-content');
-                                 if (newContentSpan) {
-                                     newContentSpan.focus();
-                                     const newRange = document.createRange();
-                                     newRange.selectNodeContents(newContentSpan);
-                                     newRange.collapse(true); 
-                                     selection.removeAllRanges();
-                                     selection.addRange(newRange);
-                                 }
-                                 saveTasks(cell, dateKey); 
+                            if (targetContent && !targetContent.isContentEditable) { // 편집 불가능 상태일 때만 암호 요청
+                                const inputPassword = prompt("수정하려면 암호를 입력하세요:");
+                                if (inputPassword === PASSWORD) {
+                                    targetContent.contentEditable = "true";
+                                    targetContent.focus();
+                                    // 삭제 버튼 표시
+                                    const deleteBtn = targetContent.nextElementSibling;
+                                    if (deleteBtn && deleteBtn.classList.contains('delete-task-btn')) {
+                                        deleteBtn.style.display = 'inline-block';
+                                    }
+                                } else if (inputPassword !== null) { // 취소 버튼 누른 경우가 아닐 때
+                                    alert("암호가 틀렸습니다.");
+                                }
+                            } else if (targetContent && targetContent.isContentEditable) {
+                                // 이미 편집 가능 상태인 경우, 그냥 두기 (클릭 시 별도 동작 없음)
+                            } else if (targetCheckbox) { // 체크박스 클릭
+                                saveTasks(cell, dateKey);
+                            } else if (targetDeleteBtn) { // 삭제 버튼 클릭
+                                const liToRemove = targetDeleteBtn.closest('li');
+                                if (liToRemove) {
+                                    taskList.removeChild(liToRemove);
+                                    saveTasks(cell, dateKey); // 삭제 후 저장
+                                }
                             }
-                         });
+                        });
 
-                    } else if (cellDate.getMonth() === month) { 
-                        // 11월이거나 today 이전의 날짜는 기본적으로 읽기 전용 상태
-                        cell.appendChild(taskList);
+                        // focusout (blur) 이벤트를 사용하여 편집 모드 종료 시 저장 및 잠금
+                        taskList.addEventListener('focusout', (event) => { 
+                            let targetContent = event.target.closest('.task-content');
+                            if (targetContent && targetContent.isContentEditable) {
+                                targetContent.contentEditable = "false";
+                                saveTasks(cell, dateKey);
+                                // 삭제 버튼 숨김
+                                const deleteBtn = targetContent.nextElementSibling;
+                                if (deleteBtn && deleteBtn.classList.contains('delete-task-btn')) {
+                                    deleteBtn.style.display = 'none';
+                                }
+                            }
+                        });
+
+                        taskList.addEventListener('keydown', (e) => {
+                            let currentContentSpan = e.target.closest('.task-content');
+                            if (e.key === 'Enter' && !e.shiftKey && currentContentSpan && currentContentSpan.isContentEditable) {
+                                e.preventDefault(); 
+                                
+                                const selection = window.getSelection();
+                                const range = selection.getRangeAt(0);
+                                
+                                const newLi = document.createElement('li');
+                                newLi.innerHTML = `<input type="checkbox"> <span class="task-content" contenteditable="true"></span><button class="delete-task-btn" style="display:inline-block;">[X]</button>`;
+                                
+                                const currentLi = currentContentSpan.closest('li');
+                                if (currentLi) {
+                                    taskList.insertBefore(newLi, currentLi.nextSibling);
+                                } else {
+                                    taskList.appendChild(newLi);
+                                }
+
+                                const newContentSpan = newLi.querySelector('.task-content');
+                                if (newContentSpan) {
+                                    newContentSpan.focus();
+                                    const newRange = document.createRange();
+                                    newRange.selectNodeContents(newContentSpan);
+                                    newRange.collapse(true); 
+                                    selection.removeAllRanges();
+                                    selection.addRange(newRange);
+                                }
+                                saveTasks(cell, dateKey); 
+                            }
+                        });
                     }
                 }
                 
@@ -421,10 +438,10 @@
             const currentSubjectTask = isReviewDay ? `${currentSubject} 복습` : `${currentSubject}`; // '1단원' 제거
             
             taskList.innerHTML = `
-                <li><input type="checkbox"> <span class="task-content" contenteditable="true">워드마스터 하이퍼 단어 외우기</span><button class="delete-task-btn">[X]</button></li>
-                <li><input type="checkbox"> <span class="task-content" contenteditable="true">ENS 6문제</span><button class="delete-task-btn">[X]</button></li>
-                <li><input type="checkbox"> <span class="task-content" contenteditable="true">${maplTask}</span><button class="delete-task-btn">[X]</button></li>
-                <li><input type="checkbox"> <span class="task-content" contenteditable="true">${currentSubjectTask}</span><button class="delete-task-btn">[X]</button></li>
+                <li><input type="checkbox"> <span class="task-content">${("워드마스터 하이퍼 단어 외우기")}</span><button class="delete-task-btn">[X]</button></li>
+                <li><input type="checkbox"> <span class="task-content">${("ENS 6문제")}</span><button class="delete-task-btn">[X]</button></li>
+                <li><input type="checkbox"> <span class="task-content">${maplTask}</span><button class="delete-task-btn">[X]</button></li>
+                <li><input type="checkbox"> <span class="task-content">${currentSubjectTask}</span><button class="delete-task-btn">[X]</button></li>
             `;
         }
 
